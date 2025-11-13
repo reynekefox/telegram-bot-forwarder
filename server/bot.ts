@@ -215,12 +215,35 @@ async function deleteForwardedMessage(telegram: any, sourceChatId: string, sourc
     };
   }
 
-  console.log(`Deleting ${forwardedMessages.length} forwarded messages (src #${sourceMessageId})`);
+  const totalCount = forwardedMessages.length + 1; // +1 for source channel
+  console.log(`Deleting message #${sourceMessageId} from source and ${forwardedMessages.length} target channels`);
 
   let successCount = 0;
   let lastDeletedMessageId: number | null = null;
   const remainingMessages: Array<{ chatId: string; messageId: number }> = [];
 
+  // First, delete from source channel
+  try {
+    await telegram.deleteMessage(sourceChatId, sourceMessageId);
+    successCount++;
+    lastDeletedMessageId = sourceMessageId;
+    storage.incrementDeleted();
+    console.log(`Deleted message #${sourceMessageId} from source channel ${sourceChatId}`);
+  } catch (error: any) {
+    console.error(`Error deleting from source channel #${sourceMessageId}:`, error.message);
+    storage.incrementErrors();
+    
+    await storage.addLog({
+      type: "error",
+      sourceChatId,
+      sourceMessageId,
+      targetMessageId: sourceMessageId,
+      status: "failed",
+      message: `Failed to delete from source channel: ${error.message}`,
+    });
+  }
+
+  // Then delete from all target channels
   for (const { chatId, messageId: targetMessageId } of forwardedMessages) {
     try {
       await telegram.deleteMessage(chatId, targetMessageId);
@@ -240,7 +263,7 @@ async function deleteForwardedMessage(telegram: any, sourceChatId: string, sourc
         sourceMessageId,
         targetMessageId,
         status: "failed",
-        message: `Failed to delete from ${chatId}: ${error.message}`,
+        message: `Failed to delete from target ${chatId}: ${error.message}`,
       });
     }
   }
@@ -261,7 +284,7 @@ async function deleteForwardedMessage(telegram: any, sourceChatId: string, sourc
     sourceMessageId,
     targetMessageId: lastDeletedMessageId,
     status: successCount > 0 ? "success" : "failed",
-    message: `Message deleted from ${successCount} of ${forwardedMessages.length} channels`,
+    message: `Message deleted from ${successCount} of ${totalCount} channels (source + targets)`,
     messageText: originalLog?.messageText || null,
     hasPhoto: originalLog?.hasPhoto || null,
     photoUrl: originalLog?.photoUrl || null,
@@ -271,7 +294,7 @@ async function deleteForwardedMessage(telegram: any, sourceChatId: string, sourc
     success: successCount > 0,
     error: successCount === 0 ? "Failed to delete from all channels" : undefined,
     successCount,
-    totalCount: forwardedMessages.length,
+    totalCount,
     partialFailure: successCount > 0 && remainingMessages.length > 0,
   };
 }

@@ -160,11 +160,12 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 
 **Deletion Behavior:**
 - `deleteForwardedMessage` function handles both UI and command deletions
+- Deletes from **source channel AND all target channels**
 - Tracks `lastDeletedMessageId` (accurate targetMessageId for DELETE log)
 - Retrieves original FORWARD log to propagate message context
 - DELETE log includes messageText, hasPhoto, photoUrl from original
 - `totalDeleted` increments per successfully deleted message, not per command
-- Example: 1 deletion from 4 channels → 3 succeed, 1 fails → counter +3
+- Example: 1 source + 4 targets → 4 succeed, 1 fails → counter +4
 - Failed deletions increment the `errors` counter
 - Partial failures allow retry (failed entries remain in mapping)
 
