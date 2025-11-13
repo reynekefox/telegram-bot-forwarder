@@ -12,6 +12,9 @@ export const botLogs = pgTable("bot_logs", {
   targetMessageId: integer("target_message_id"),
   status: text("status").notNull(),
   message: text("message"),
+  messageText: text("message_text"),
+  hasPhoto: boolean("has_photo").default(false),
+  photoUrl: text("photo_url"),
 });
 
 export const insertBotLogSchema = createInsertSchema(botLogs).omit({

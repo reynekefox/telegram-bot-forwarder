@@ -10,6 +10,7 @@ export interface IStorage {
   // Bot logs
   addLog(log: InsertBotLog): Promise<BotLog>;
   getLogs(limit?: number): Promise<BotLog[]>;
+  findLog(sourceChatId: string, sourceMessageId: number, type: string): Promise<BotLog | undefined>;
   
   // Bot stats
   getStats(): Promise<BotStats>;
@@ -75,6 +76,9 @@ export class MemStorage implements IStorage {
       ...insertLog,
       message: insertLog.message || null,
       targetMessageId: insertLog.targetMessageId || null,
+      messageText: insertLog.messageText || null,
+      hasPhoto: insertLog.hasPhoto || null,
+      photoUrl: insertLog.photoUrl || null,
     };
     this.logs.unshift(log);
     if (this.logs.length > 1000) {
@@ -85,6 +89,14 @@ export class MemStorage implements IStorage {
 
   async getLogs(limit: number = 50): Promise<BotLog[]> {
     return this.logs.slice(0, limit);
+  }
+
+  async findLog(sourceChatId: string, sourceMessageId: number, type: string): Promise<BotLog | undefined> {
+    return this.logs.find(
+      log => log.sourceChatId === sourceChatId && 
+             log.sourceMessageId === sourceMessageId && 
+             log.type === type
+    );
   }
 
   async getStats(): Promise<BotStats> {

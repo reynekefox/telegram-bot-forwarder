@@ -1,7 +1,11 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ArrowRight, CheckCircle2, Edit3, XCircle, Trash2 } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export interface LogEntry {
   id: string;
@@ -12,6 +16,9 @@ export interface LogEntry {
   targetMessageId?: number;
   status: string;
   message?: string;
+  messageText?: string | null;
+  hasPhoto?: boolean | null;
+  photoUrl?: string | null;
 }
 
 interface ActivityLogProps {
@@ -19,6 +26,51 @@ interface ActivityLogProps {
 }
 
 export default function ActivityLog({ logs }: ActivityLogProps) {
+  const { toast } = useToast();
+
+  const deleteMutation = useMutation({
+    mutationFn: async ({ sourceChatId, sourceMessageId }: { sourceChatId: string; sourceMessageId: number }) => {
+      const response = await apiRequest("POST", "/api/messages/delete", { sourceChatId, sourceMessageId });
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      
+      if (data.success) {
+        if (data.partialFailure) {
+          toast({
+            title: "Частичное удаление",
+            description: `Удалено из ${data.successCount} из ${data.totalCount} каналов. Можно попробовать снова.`,
+            variant: "default",
+          });
+        } else {
+          toast({
+            title: "Сообщение удалено",
+            description: `Пересланное сообщение успешно удалено из всех ${data.successCount} каналов`,
+          });
+        }
+      } else {
+        toast({
+          title: "Ошибка удаления",
+          description: "Не удалось удалить сообщение ни из одного канала",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ошибка удаления",
+        description: error.message || "Не удалось удалить сообщение",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDelete = (sourceChatId: string, sourceMessageId: number) => {
+    deleteMutation.mutate({ sourceChatId, sourceMessageId });
+  };
+
   const getLogIcon = (type: LogEntry["type"]) => {
     switch (type) {
       case "forward":
@@ -87,7 +139,7 @@ export default function ActivityLog({ logs }: ActivityLogProps) {
                         {formatTime(log.timestamp)}
                       </span>
                     </div>
-                    <div className="text-sm space-y-1">
+                    <div className="text-sm space-y-2">
                       <div className="font-mono text-xs text-muted-foreground">
                         Message #{log.sourceMessageId}
                         {log.targetMessageId && (
@@ -101,8 +153,36 @@ export default function ActivityLog({ logs }: ActivityLogProps) {
                       {log.message && (
                         <p className="text-sm">{log.message}</p>
                       )}
+                      {log.type === "forward" && (log.messageText || log.hasPhoto) && (
+                        <div className="mt-2 p-2 rounded-md bg-muted/50 space-y-2">
+                          {log.hasPhoto && log.photoUrl && (
+                            <img
+                              src={log.photoUrl}
+                              alt="Message preview"
+                              className="max-w-full h-auto rounded max-h-32 object-cover"
+                              data-testid={`img-preview-${log.id}`}
+                            />
+                          )}
+                          {log.messageText && (
+                            <p className="text-sm line-clamp-2" data-testid={`text-preview-${log.id}`}>
+                              {log.messageText}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
+                  {log.type === "forward" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDelete(log.sourceChatId, log.sourceMessageId)}
+                      disabled={deleteMutation.isPending}
+                      data-testid={`button-delete-${log.sourceMessageId}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               ))
             )}

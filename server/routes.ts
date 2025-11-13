@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { startBot } from "./bot";
+import { startBot, bot, deleteForwardedMessage, SOURCE_CHAT_ID } from "./bot";
+import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get bot statistics
@@ -60,6 +61,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         success: true, 
         message: "Please restart the workflow to apply changes" 
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Delete forwarded message from dashboard
+  app.post("/api/messages/delete", async (req, res) => {
+    try {
+      const deleteSchema = z.object({
+        sourceChatId: z.string(),
+        sourceMessageId: z.union([
+          z.number().int().nonnegative(),
+          z.string().regex(/^[0-9]+$/).transform(Number)
+        ]),
+      });
+
+      const parseResult = deleteSchema.safeParse(req.body);
+      
+      if (!parseResult.success) {
+        return res.status(400).json({ 
+          error: "Invalid request parameters",
+          details: parseResult.error.errors 
+        });
+      }
+
+      const { sourceChatId, sourceMessageId } = parseResult.data;
+
+      const result = await deleteForwardedMessage(
+        bot.telegram,
+        sourceChatId,
+        sourceMessageId
+      );
+
+      if (!result.success && result.error === "Message not found in forwarding history") {
+        return res.status(404).json({ 
+          success: false, 
+          error: result.error 
+        });
+      }
+
+      res.json({
+        success: result.success,
+        error: result.error,
+        successCount: result.successCount,
+        totalCount: result.totalCount,
+        partialFailure: result.partialFailure,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

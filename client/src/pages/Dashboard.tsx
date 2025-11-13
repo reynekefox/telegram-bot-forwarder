@@ -31,6 +31,9 @@ export default function Dashboard() {
     targetMessageId: log.targetMessageId || undefined,
     status: log.status,
     message: log.message || undefined,
+    messageText: log.messageText || undefined,
+    hasPhoto: log.hasPhoto || undefined,
+    photoUrl: log.photoUrl || undefined,
   })) || [];
 
   const formatUptime = (seconds: number) => {
