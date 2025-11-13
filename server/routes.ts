@@ -95,10 +95,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sourceMessageId
       );
 
-      if (!result.success && result.error === "Message not found in forwarding history") {
-        return res.status(404).json({ 
-          success: false, 
-          error: result.error 
+      if (!result.success) {
+        if (result.error === "Message not found in forwarding history") {
+          return res.status(404).json({ 
+            success: false, 
+            error: result.error 
+          });
+        }
+        return res.status(409).json({
+          success: false,
+          error: result.error,
+          successCount: result.successCount,
+          totalCount: result.totalCount,
         });
       }
 

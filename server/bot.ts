@@ -272,7 +272,7 @@ async function deleteForwardedMessage(telegram: any, sourceChatId: string, sourc
     error: successCount === 0 ? "Failed to delete from all channels" : undefined,
     successCount,
     totalCount: forwardedMessages.length,
-    partialFailure: remainingMessages.length > 0,
+    partialFailure: successCount > 0 && remainingMessages.length > 0,
   };
 }
 

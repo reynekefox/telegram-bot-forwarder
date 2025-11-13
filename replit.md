@@ -18,7 +18,11 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 ### Dashboard
 - **Real-Time Monitoring**: Live statistics updated every 2 seconds
 - **Status Cards**: Messages forwarded, edited, deleted, errors, uptime
-- **Activity Log**: Scrollable history of all bot operations
+- **Activity Log**: 
+  - Scrollable history of all bot operations
+  - **Message Previews**: Shows text content and photo thumbnails for forwarded messages
+  - **Delete Button**: Click to delete forwarded messages directly from UI (no channel command needed)
+  - Toast notifications with detailed feedback (success/partial/failure)
 - **Configuration Panel**: 
   - View source channel ID
   - Configure up to 4 target channels
@@ -46,32 +50,50 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 ### Bot (server/bot.ts)
 - Handles Telegram updates (messages, edits, channel posts)
 - Forwards messages to multiple target channels
+- Captures message content (text, photos) using Telegram's getFileLink API
 - Maintains forward mapping (source→multiple target {chatId, messageId} pairs)
 - Preserves formatting entities in edits
 - Supports `/delete <message_id>` command for removing forwarded messages
-- Logs all operations with per-channel details
+- `deleteForwardedMessage` function: shared deletion logic for bot commands and API
+- Logs all operations with per-channel details and message context
 
 ### Storage (server/storage.ts)
 - In-memory storage with proper interfaces
 - Bot status tracking
 - Statistics (forwarded, edited, deleted, errors, uptime)
-- Activity logs (capped at 1000 entries)
+- Activity logs (capped at 1000 entries):
+  - Stores message text and photo URLs for preview display
+  - `findLog` method for retrieving original FORWARD logs
 - **Immutable forward mapping**: Stores `{chatId, messageId}` pairs per source message
 - Target channels configuration (up to 4 channels)
 
 ### API (server/routes.ts)
 - `GET /api/stats` - Bot statistics
-- `GET /api/logs?limit=50` - Activity history
+- `GET /api/logs?limit=50` - Activity history with message content
 - `GET /api/config` - Channel configuration (source + target channels array)
 - `POST /api/config/channels` - Update target channels
 - `POST /api/bot/restart` - Restart bot (requires manual workflow restart)
+- `POST /api/messages/delete` - Delete forwarded messages from dashboard
+  - Validates parameters with Zod (accepts number or numeric string)
+  - Returns 404 for "not found", 200 for all other cases
+  - Response includes success flag, counts, and error details
 
 ### Dashboard (client/src/pages/Dashboard.tsx)
 - Polls API every 2 seconds
 - Displays real-time statistics (5 cards including deletions)
-- Shows activity log with timestamps
+- Shows activity log with timestamps and message previews
 - Indicates bot running status
 - Configuration panel with editable target channels
+
+### Activity Log (client/src/components/ActivityLog.tsx)
+- Displays forwarded messages with text and image previews
+- Delete button on each FORWARD log entry
+- Mutation sends deletion request to API
+- Cache invalidation after deletion
+- Toast notifications:
+  - Success: All channels deleted successfully
+  - Warning: Partial deletion (can retry)
+  - Error: No deletions successful or not found
 
 ## Configuration
 
@@ -101,6 +123,20 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 4. Logs the operation with success count
 
 ### Message Deletion
+
+**Two Ways to Delete:**
+
+#### 1. Dashboard UI (Recommended)
+1. View Activity Log in the dashboard
+2. Find the FORWARD log entry with message preview
+3. Click the Delete button
+4. Receive toast notification:
+   - Success: All channels deleted
+   - Warning: Partial deletion (can retry)
+   - Error: No deletions successful
+5. Statistics and logs update automatically
+
+#### 2. Bot Command (Alternative)
 1. Send command `/delete <message_id>` in the source channel
 2. Bot validates the command:
    - Missing message ID → increment errors, log error, reply with usage
@@ -121,11 +157,14 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 ```
 /delete 12345
 ```
-This will delete message #12345 from all channels where it was forwarded.
 
-**Statistics behavior:**
+**Deletion Behavior:**
+- `deleteForwardedMessage` function handles both UI and command deletions
+- Tracks `lastDeletedMessageId` (accurate targetMessageId for DELETE log)
+- Retrieves original FORWARD log to propagate message context
+- DELETE log includes messageText, hasPhoto, photoUrl from original
 - `totalDeleted` increments per successfully deleted message, not per command
-- Example: 1 command deleting from 4 channels → 3 succeed, 1 fails → counter +3
+- Example: 1 deletion from 4 channels → 3 succeed, 1 fails → counter +3
 - Failed deletions increment the `errors` counter
 - Partial failures allow retry (failed entries remain in mapping)
 
@@ -164,13 +203,24 @@ This will delete message #12345 from all channels where it was forwarded.
 - Message IDs with arrow showing source→target
 - Multi-channel operations show "X of Y channels" status
 - Error messages with details including which channel failed
+- **Message Previews** (FORWARD entries only):
+  - Text preview (2 lines, truncated)
+  - Photo thumbnail (rounded, max 128px height)
+  - Delete button for direct removal
 
 ## Development Notes
 
 ### Recent Changes (November 13, 2025)
-- **Added delete command**: `/delete <message_id>` to remove forwarded messages
+- **Dashboard-based deletion**: Delete forwarded messages directly from Activity Log UI
+- **Message previews**: Activity Log shows text content and photo thumbnails
+- **Message context capture**: Bot stores messageText, hasPhoto, photoUrl during forwarding
+- **DELETE API endpoint**: `/api/messages/delete` with Zod validation and proper error handling
+- **Reusable deletion logic**: `deleteForwardedMessage` function shared between bot command and API
+- **Enhanced logging**: DELETE logs include complete message context from original FORWARD log
+- **Accurate deletion tracking**: Last-deleted targetMessageId and metadata propagation
+- **Toast notifications**: Success/partial/failure feedback based on actual deletion results
+- **Added delete command**: `/delete <message_id>` to remove forwarded messages from channel
 - **Added delete statistics**: New status card showing total deleted messages
-- **Updated activity log**: DELETE badge for deletion operations
 - **Multi-channel support**: Forward to up to 4 target channels
 - **Configuration UI**: Editable target channels in dashboard
 - **Restart button**: Request bot restart via UI
@@ -190,6 +240,7 @@ This will delete message #12345 from all channels where it was forwarded.
 - Bot restart requires manual workflow restart
 - No retroactive forwarding when changing target channels
 - Delete command only works for messages in forwarding history
+- DELETE API endpoint lacks authentication (internal use only)
 
 ### Telegram Bot API Limitations
 - **No automatic deletion sync**: Telegram Bot API does not provide events when messages are deleted
@@ -205,4 +256,6 @@ This will delete message #12345 from all channels where it was forwarded.
 - Forward mapping cleanup/expiration
 - Per-channel statistics
 - Retroactive forwarding option when changing channels
-- Bulk delete command
+- Bulk delete command from dashboard
+- Authentication for DELETE API endpoint
+- Video and document previews in Activity Log
