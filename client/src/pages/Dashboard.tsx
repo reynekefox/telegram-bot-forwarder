@@ -1,67 +1,43 @@
-import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { MessageSquare, Edit3, XCircle, Clock } from "lucide-react";
 import StatusCard from "@/components/StatusCard";
 import BotStatusIndicator from "@/components/BotStatusIndicator";
 import ActivityLog, { LogEntry } from "@/components/ActivityLog";
 import ConfigPanel from "@/components/ConfigPanel";
 import ThemeToggle from "@/components/ThemeToggle";
+import { BotStats, BotLog } from "@shared/schema";
 
 export default function Dashboard() {
-  const [isRunning] = useState(true);
-  
-  const [logs, setLogs] = useState<LogEntry[]>([
-    {
-      id: "1",
-      timestamp: new Date(Date.now() - 1000 * 30),
-      type: "forward",
-      sourceChatId: "-1003141215929",
-      sourceMessageId: 1234,
-      targetMessageId: 5678,
-      status: "success",
-      message: "New message forwarded successfully",
-    },
-    {
-      id: "2",
-      timestamp: new Date(Date.now() - 1000 * 60 * 2),
-      type: "edit",
-      sourceChatId: "-1003141215929",
-      sourceMessageId: 1230,
-      targetMessageId: 5674,
-      status: "success",
-      message: "Message edit synchronized",
-    },
-    {
-      id: "3",
-      timestamp: new Date(Date.now() - 1000 * 60 * 5),
-      type: "forward",
-      sourceChatId: "-1003141215929",
-      sourceMessageId: 1228,
-      targetMessageId: 5672,
-      status: "success",
-      message: "Channel post forwarded",
-    },
-  ]);
+  const { data: stats, isLoading: statsLoading } = useQuery<BotStats>({
+    queryKey: ["/api/stats"],
+    refetchInterval: 2000,
+  });
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const newLog: LogEntry = {
-        id: Date.now().toString(),
-        timestamp: new Date(),
-        type: Math.random() > 0.7 ? "edit" : "forward",
-        sourceChatId: "-1003141215929",
-        sourceMessageId: Math.floor(Math.random() * 9000) + 1000,
-        targetMessageId: Math.floor(Math.random() * 9000) + 5000,
-        status: "success",
-        message:
-          Math.random() > 0.7
-            ? "Message edit synchronized"
-            : "New message forwarded successfully",
-      };
-      setLogs((prev) => [newLog, ...prev].slice(0, 50));
-    }, 8000);
+  const { data: logsData, isLoading: logsLoading } = useQuery<BotLog[]>({
+    queryKey: ["/api/logs"],
+    refetchInterval: 2000,
+  });
 
-    return () => clearInterval(interval);
-  }, []);
+  const { data: config } = useQuery<{ sourceChatId: string; targetChatId: string }>({
+    queryKey: ["/api/config"],
+  });
+
+  const logs: LogEntry[] = logsData?.map((log) => ({
+    id: log.id,
+    timestamp: new Date(log.timestamp),
+    type: log.type as "forward" | "edit" | "error",
+    sourceChatId: log.sourceChatId,
+    sourceMessageId: log.sourceMessageId,
+    targetMessageId: log.targetMessageId || undefined,
+    status: log.status,
+    message: log.message || undefined,
+  })) || [];
+
+  const formatUptime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -72,7 +48,7 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold">Telegram Bot Dashboard</h1>
           </div>
           <div className="flex items-center gap-3">
-            <BotStatusIndicator isRunning={isRunning} />
+            <BotStatusIndicator isRunning={stats?.isRunning || false} />
             <ThemeToggle />
           </div>
         </div>
@@ -82,28 +58,28 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatusCard
             title="Messages Forwarded"
-            value={1247}
+            value={statsLoading ? "..." : stats?.totalForwarded || 0}
             icon={MessageSquare}
             variant="success"
             description="Total forwarded"
           />
           <StatusCard
             title="Messages Edited"
-            value={89}
+            value={statsLoading ? "..." : stats?.totalEdited || 0}
             icon={Edit3}
             variant="warning"
             description="Synced edits"
           />
           <StatusCard
             title="Errors"
-            value={3}
+            value={statsLoading ? "..." : stats?.errors || 0}
             icon={XCircle}
             variant="error"
             description="Failed operations"
           />
           <StatusCard
             title="Uptime"
-            value="12h 34m"
+            value={statsLoading ? "..." : formatUptime(stats?.uptime || 0)}
             icon={Clock}
             description="Current session"
           />
@@ -115,8 +91,8 @@ export default function Dashboard() {
           </div>
           <div>
             <ConfigPanel
-              sourceChatId="-1003141215929"
-              targetChatId="-1003443779414"
+              sourceChatId={config?.sourceChatId || "Loading..."}
+              targetChatId={config?.targetChatId || "Loading..."}
             />
           </div>
         </div>
