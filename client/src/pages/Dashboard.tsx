@@ -18,7 +18,7 @@ export default function Dashboard() {
     refetchInterval: 2000,
   });
 
-  const { data: config } = useQuery<{ sourceChatId: string; targetChatId: string }>({
+  const { data: config } = useQuery<{ sourceChatId: string; targetChannels: string[] }>({
     queryKey: ["/api/config"],
   });
 
@@ -92,7 +92,7 @@ export default function Dashboard() {
           <div>
             <ConfigPanel
               sourceChatId={config?.sourceChatId || "Loading..."}
-              targetChatId={config?.targetChatId || "Loading..."}
+              targetChannels={config?.targetChannels || ["", "", "", ""]}
             />
           </div>
         </div>

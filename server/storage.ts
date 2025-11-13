@@ -1,6 +1,11 @@
 import { type BotLog, type InsertBotLog, type BotStats } from "@shared/schema";
 import { randomUUID } from "crypto";
 
+interface ForwardedMessage {
+  chatId: string;
+  messageId: number;
+}
+
 export interface IStorage {
   // Bot logs
   addLog(log: InsertBotLog): Promise<BotLog>;
@@ -13,14 +18,18 @@ export interface IStorage {
   incrementErrors(): void;
   setBotRunning(running: boolean): void;
   
-  // Forward mapping
-  setForwardMapping(sourceChatId: string, sourceMessageId: number, targetMessageId: number): void;
-  getForwardMapping(sourceChatId: string, sourceMessageId: number): number | undefined;
+  // Forward mapping - stores chat ID and message ID pairs
+  setForwardMapping(sourceChatId: string, sourceMessageId: number, forwardedMessages: ForwardedMessage[]): void;
+  getForwardMapping(sourceChatId: string, sourceMessageId: number): ForwardedMessage[] | undefined;
+  
+  // Target channels configuration
+  setTargetChannels(channels: string[]): void;
+  getTargetChannels(): string[];
 }
 
 export class MemStorage implements IStorage {
   private logs: BotLog[];
-  private forwardMap: Map<string, number>;
+  private forwardMap: Map<string, ForwardedMessage[]>;
   private stats: {
     totalForwarded: number;
     totalEdited: number;
@@ -28,6 +37,7 @@ export class MemStorage implements IStorage {
     startTime: number;
   };
   private botRunning: boolean;
+  private targetChannels: string[];
 
   constructor() {
     this.logs = [];
@@ -39,6 +49,13 @@ export class MemStorage implements IStorage {
       startTime: Date.now(),
     };
     this.botRunning = false;
+    // Initialize with one target channel from env, others empty
+    this.targetChannels = [
+      process.env.TARGET_CHAT_ID || "",
+      "",
+      "",
+      ""
+    ];
   }
 
   setBotRunning(running: boolean): void {
@@ -92,14 +109,26 @@ export class MemStorage implements IStorage {
     this.stats.errors++;
   }
 
-  setForwardMapping(sourceChatId: string, sourceMessageId: number, targetMessageId: number): void {
+  setForwardMapping(sourceChatId: string, sourceMessageId: number, forwardedMessages: ForwardedMessage[]): void {
     const key = `${sourceChatId}:${sourceMessageId}`;
-    this.forwardMap.set(key, targetMessageId);
+    this.forwardMap.set(key, forwardedMessages);
   }
 
-  getForwardMapping(sourceChatId: string, sourceMessageId: number): number | undefined {
+  getForwardMapping(sourceChatId: string, sourceMessageId: number): ForwardedMessage[] | undefined {
     const key = `${sourceChatId}:${sourceMessageId}`;
     return this.forwardMap.get(key);
+  }
+
+  setTargetChannels(channels: string[]): void {
+    // Ensure we always have exactly 4 slots
+    this.targetChannels = [...channels.slice(0, 4)];
+    while (this.targetChannels.length < 4) {
+      this.targetChannels.push("");
+    }
+  }
+
+  getTargetChannels(): string[] {
+    return [...this.targetChannels];
   }
 }
 

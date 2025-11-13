@@ -4,18 +4,17 @@ import { storage } from "./storage";
 
 const BOT_TOKEN = process.env.BOT_TOKEN!;
 const SOURCE_CHAT_ID = process.env.SOURCE_CHAT_ID!;
-const TARGET_CHAT_ID = process.env.TARGET_CHAT_ID!;
 
-if (!BOT_TOKEN || !SOURCE_CHAT_ID || !TARGET_CHAT_ID) {
-  console.error("Missing required environment variables: BOT_TOKEN, SOURCE_CHAT_ID, TARGET_CHAT_ID");
+if (!BOT_TOKEN || !SOURCE_CHAT_ID) {
+  console.error("Missing required environment variables: BOT_TOKEN, SOURCE_CHAT_ID");
   process.exit(1);
 }
 
 const bot = new Telegraf(BOT_TOKEN);
 
-console.log(`Bot configured to forward from ${SOURCE_CHAT_ID} to ${TARGET_CHAT_ID}`);
+console.log(`Bot configured to forward from ${SOURCE_CHAT_ID}`);
 
-// Helper to forward message
+// Helper to forward message to multiple targets
 async function forwardMessage(ctx: any) {
   const sourceChatId = ctx.chat.id.toString();
   const msg = ctx.message || ctx.channelPost;
@@ -26,45 +25,60 @@ async function forwardMessage(ctx: any) {
   }
 
   const sourceMessageId = msg.message_id;
+  const targetChannels = storage.getTargetChannels().filter(ch => ch.trim() !== "");
+
+  if (targetChannels.length === 0) {
+    console.log("No target channels configured");
+    return;
+  }
 
   console.log(`New message in source chat ${sourceChatId} #${sourceMessageId}`);
 
-  try {
-    const forwarded = await ctx.telegram.copyMessage(
-      TARGET_CHAT_ID,
-      sourceChatId,
-      sourceMessageId
-    );
+  const forwardedMessages: Array<{ chatId: string; messageId: number }> = [];
+  let successCount = 0;
 
-    storage.setForwardMapping(sourceChatId, sourceMessageId, forwarded.message_id);
+  for (const targetChatId of targetChannels) {
+    try {
+      const forwarded = await ctx.telegram.copyMessage(
+        targetChatId,
+        sourceChatId,
+        sourceMessageId
+      );
+
+      forwardedMessages.push({ chatId: targetChatId, messageId: forwarded.message_id });
+      successCount++;
+      console.log(`Forwarded as #${forwarded.message_id} to ${targetChatId}`);
+    } catch (error: any) {
+      console.error(`Error forwarding to ${targetChatId}:`, error.message);
+      storage.incrementErrors();
+
+      await storage.addLog({
+        type: "error",
+        sourceChatId,
+        sourceMessageId,
+        targetMessageId: null,
+        status: "failed",
+        message: `Failed to forward to ${targetChatId}: ${error.message}`,
+      });
+    }
+  }
+
+  if (successCount > 0) {
+    storage.setForwardMapping(sourceChatId, sourceMessageId, forwardedMessages);
     storage.incrementForwarded();
 
     await storage.addLog({
       type: "forward",
       sourceChatId,
       sourceMessageId,
-      targetMessageId: forwarded.message_id,
+      targetMessageId: forwardedMessages[0]?.messageId || null,
       status: "success",
-      message: "Message forwarded successfully",
-    });
-
-    console.log(`Forwarded as #${forwarded.message_id} to ${TARGET_CHAT_ID}`);
-  } catch (error: any) {
-    console.error("Error forwarding message:", error.message);
-    storage.incrementErrors();
-
-    await storage.addLog({
-      type: "error",
-      sourceChatId,
-      sourceMessageId,
-      targetMessageId: null,
-      status: "failed",
-      message: `Failed to forward: ${error.message}`,
+      message: `Message forwarded to ${successCount} of ${targetChannels.length} channels`,
     });
   }
 }
 
-// Helper to edit forwarded message
+// Helper to edit forwarded messages in multiple targets
 async function editForwardedMessage(ctx: any) {
   const sourceChatId = ctx.chat.id.toString();
   const editedMsg = ctx.editedMessage || ctx.editedChannelPost;
@@ -75,61 +89,68 @@ async function editForwardedMessage(ctx: any) {
   }
 
   const sourceMessageId = editedMsg.message_id;
-  const targetMessageId = storage.getForwardMapping(sourceChatId, sourceMessageId);
+  const forwardedMessages = storage.getForwardMapping(sourceChatId, sourceMessageId);
 
-  if (!targetMessageId) {
-    console.log(`No forwarded message found for edited #${sourceMessageId}`);
+  if (!forwardedMessages || forwardedMessages.length === 0) {
+    console.log(`No forwarded messages found for edited #${sourceMessageId}`);
     return;
   }
+  
+  console.log(`Editing ${forwardedMessages.length} forwarded messages (src #${sourceMessageId})`);
 
-  console.log(`Editing forwarded message #${targetMessageId} (src #${sourceMessageId})`);
+  let successCount = 0;
 
-  try {
-    if (editedMsg.text) {
-      await ctx.telegram.editMessageText(
-        TARGET_CHAT_ID,
-        targetMessageId,
-        undefined,
-        editedMsg.text,
-        {
-          entities: editedMsg.entities,
-        }
-      );
-    } else if (editedMsg.caption) {
-      await ctx.telegram.editMessageCaption(
-        TARGET_CHAT_ID,
-        targetMessageId,
-        undefined,
-        editedMsg.caption,
-        {
-          caption_entities: editedMsg.caption_entities,
-        }
-      );
+  for (const { chatId, messageId } of forwardedMessages) {
+    try {
+      if (editedMsg.text) {
+        await ctx.telegram.editMessageText(
+          chatId,
+          messageId,
+          undefined,
+          editedMsg.text,
+          {
+            entities: editedMsg.entities,
+          }
+        );
+      } else if (editedMsg.caption) {
+        await ctx.telegram.editMessageCaption(
+          chatId,
+          messageId,
+          undefined,
+          editedMsg.caption,
+          {
+            caption_entities: editedMsg.caption_entities,
+          }
+        );
+      }
+
+      successCount++;
+      console.log(`Edit synchronized for message #${messageId} in ${chatId}`);
+    } catch (error: any) {
+      console.error(`Error editing message #${messageId}:`, error.message);
+      storage.incrementErrors();
+
+      await storage.addLog({
+        type: "error",
+        sourceChatId,
+        sourceMessageId,
+        targetMessageId: messageId,
+        status: "failed",
+        message: `Failed to edit in ${chatId}: ${error.message}`,
+      });
     }
+  }
 
+  if (successCount > 0) {
     storage.incrementEdited();
 
     await storage.addLog({
       type: "edit",
       sourceChatId,
       sourceMessageId,
-      targetMessageId,
+      targetMessageId: forwardedMessages[0]?.messageId || null,
       status: "success",
-      message: "Message edit synchronized",
-    });
-
-    console.log(`Edit synchronized for message #${targetMessageId}`);
-  } catch (error: any) {
-    console.error("Error editing message:", error.message);
-    storage.incrementErrors();
-
-    await storage.addLog({
-      type: "error",
-      sourceChatId,
-      sourceMessageId,
-      targetMessageId,
-      status: "failed",
-      message: `Failed to edit: ${error.message}`,
+      message: `Edit synchronized in ${successCount} of ${forwardedMessages.length} channels`,
     });
   }
 }

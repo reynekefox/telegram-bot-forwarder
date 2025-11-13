@@ -30,7 +30,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       res.json({
         sourceChatId: process.env.SOURCE_CHAT_ID,
-        targetChatId: process.env.TARGET_CHAT_ID,
+        targetChannels: storage.getTargetChannels(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update target channels
+  app.post("/api/config/channels", async (req, res) => {
+    try {
+      const { channels } = req.body;
+      if (!Array.isArray(channels)) {
+        return res.status(400).json({ error: "channels must be an array" });
+      }
+      storage.setTargetChannels(channels);
+      res.json({ success: true, channels: storage.getTargetChannels() });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Restart bot
+  app.post("/api/bot/restart", async (_req, res) => {
+    try {
+      console.log("Restarting bot via API...");
+      // The bot restart will be handled by restarting the workflow
+      // For now, just respond with success and let the user restart manually
+      res.json({ 
+        success: true, 
+        message: "Please restart the workflow to apply changes" 
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

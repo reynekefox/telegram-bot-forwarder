@@ -1,22 +1,28 @@
 # Telegram Message Forwarding Bot
 
 ## Overview
-A Node.js/TypeScript Telegram bot that forwards messages between channels with full edit synchronization and a real-time monitoring dashboard.
+A Node.js/TypeScript Telegram bot that forwards messages between channels with full edit synchronization and a real-time monitoring dashboard. Now supports forwarding to **multiple target channels** (up to 4).
 
 ## Features
 
 ### Bot Functionality
-- **Message Forwarding**: Automatically forwards messages from source channel to target channel
-- **Edit Synchronization**: Syncs message edits including formatting (bold, links, etc.)
+- **Multi-Channel Forwarding**: Forwards messages to up to 4 target channels simultaneously
+- **Message Forwarding**: Automatically forwards all message types (text, photos, videos, documents)
+- **Edit Synchronization**: Syncs message edits across all target channels including formatting (bold, links, etc.)
 - **Channel & Group Support**: Works with both channel posts and group messages
 - **Error Handling**: Comprehensive error handling with user-friendly messages
 - **Activity Logging**: All operations logged for monitoring
+- **Immutable Forward Mapping**: Each message's forward history is preserved regardless of configuration changes
 
 ### Dashboard
 - **Real-Time Monitoring**: Live statistics updated every 2 seconds
 - **Status Cards**: Messages forwarded, edited, errors, uptime
 - **Activity Log**: Scrollable history of all bot operations
-- **Configuration Display**: Shows source and target channel IDs
+- **Configuration Panel**: 
+  - View source channel ID
+  - Configure up to 4 target channels
+  - Save channel configuration
+  - Restart bot button
 - **Dark Mode**: Full dark mode support
 
 ## Tech Stack
@@ -38,65 +44,84 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 
 ### Bot (server/bot.ts)
 - Handles Telegram updates (messages, edits, channel posts)
-- Maintains forward mapping (source→target message IDs)
+- Forwards messages to multiple target channels
+- Maintains forward mapping (source→multiple target {chatId, messageId} pairs)
 - Preserves formatting entities in edits
-- Logs all operations
+- Logs all operations with per-channel details
 
 ### Storage (server/storage.ts)
 - In-memory storage with proper interfaces
 - Bot status tracking
 - Statistics (forwarded, edited, errors, uptime)
 - Activity logs (capped at 1000 entries)
-- Forward mapping for edit synchronization
+- **Immutable forward mapping**: Stores `{chatId, messageId}` pairs per source message
+- Target channels configuration (up to 4 channels)
 
 ### API (server/routes.ts)
 - `GET /api/stats` - Bot statistics
 - `GET /api/logs?limit=50` - Activity history
-- `GET /api/config` - Channel configuration
+- `GET /api/config` - Channel configuration (source + target channels array)
+- `POST /api/config/channels` - Update target channels
+- `POST /api/bot/restart` - Restart bot (requires manual workflow restart)
 
 ### Dashboard (client/src/pages/Dashboard.tsx)
 - Polls API every 2 seconds
 - Displays real-time statistics
 - Shows activity log with timestamps
 - Indicates bot running status
+- Configuration panel with editable target channels
 
 ## Configuration
 
 ### Environment Variables (via Replit Secrets)
 - `BOT_TOKEN` - Telegram bot token from @BotFather
 - `SOURCE_CHAT_ID` - Source channel/group ID (e.g., -1003141215929)
-- `TARGET_CHAT_ID` - Target channel/group ID (e.g., -1003443779414)
+- `TARGET_CHAT_ID` - Default target channel ID (optional, can be changed via UI)
 
-## Running the Application
-
-The workflow "Start application" runs `npm run dev` which:
-1. Starts Express server on port 5000
-2. Launches Telegram bot with long polling
-3. Serves the React dashboard
+### Target Channels
+- Configure up to 4 target channels via the dashboard
+- Each channel is optional (empty fields are skipped)
+- Changes are saved to in-memory storage
+- **Important**: Configuration changes only affect NEW messages (see behavior notes)
 
 ## Bot Behavior
 
 ### Message Forwarding
 1. Bot receives message from source channel
-2. Copies message to target channel
-3. Stores mapping: (source chat ID, source message ID) → target message ID
-4. Logs the operation
+2. Copies message to all configured target channels
+3. Stores **immutable** mapping: `(source chat ID, source message ID)` → array of `{chatId, messageId}` pairs
+4. Logs the operation with success count
 
 ### Edit Synchronization
 1. Bot receives edit update from source channel
-2. Looks up target message ID from forward mapping
-3. Edits target message with new text/caption AND formatting entities
-4. Logs the operation
+2. Looks up stored forward mapping for that specific source message
+3. Edits messages in **all original destination channels** (preserved from initial forward)
+4. Logs the operation with success count
+
+### Channel Configuration Changes
+**Important behavior:**
+- Changing target channel configuration affects **only future messages**
+- Previously forwarded messages remain in their original destination channels
+- Edits to old messages still go to the original channels (not the new configuration)
+- This ensures edit synchronization continues to work correctly
+
+**Example:**
+1. Message #123 arrives → forwarded to channels A, B, C
+2. User changes config to channels D, E, F
+3. Message #124 arrives → forwarded to channels D, E, F
+4. User edits message #123 → edit goes to A, B, C (original destinations)
+5. User edits message #124 → edit goes to D, E, F (where it was forwarded)
 
 ### Error Handling
 - **409 Conflict**: Another bot instance is running - shows clear error message
 - **Runtime errors**: Caught and logged to activity log
 - **Graceful shutdown**: Updates status and logs shutdown event
+- **Per-channel errors**: If forwarding fails for one channel, continues with others
 
 ## Monitoring
 
 ### Statistics
-- **Messages Forwarded**: Total count of forwarded messages
+- **Messages Forwarded**: Total count of successfully forwarded messages
 - **Messages Edited**: Total count of synchronized edits
 - **Errors**: Count of failed operations
 - **Uptime**: Current session duration (0 when stopped)
@@ -105,11 +130,17 @@ The workflow "Start application" runs `npm run dev` which:
 - Type badges: FORWARD (blue), EDIT (amber), ERROR (red)
 - Timestamps in local time
 - Message IDs with arrow showing source→target
-- Error messages with details
+- Multi-channel operations show "X of Y channels" status
+- Error messages with details including which channel failed
 
 ## Development Notes
 
 ### Recent Changes (November 13, 2025)
+- **Added multi-channel support**: Forward to up to 4 target channels
+- **Configuration UI**: Editable target channels in dashboard
+- **Restart button**: Request bot restart via UI
+- **Improved forward mapping**: Now stores `{chatId, messageId}` pairs for robust edit sync
+- **Improved logging**: Per-channel error reporting
 - Fixed channel_post handling (was crashing on undefined ctx.message)
 - Added entities preservation in edit synchronization
 - Implemented proper bot status tracking
@@ -121,11 +152,15 @@ The workflow "Start application" runs `npm run dev` which:
 - In-memory storage (data lost on restart)
 - No retry mechanism for 409 conflicts
 - Forward mapping grows unbounded (consider cleanup for long-running instances)
+- Bot restart requires manual workflow restart
+- No retroactive forwarding when changing target channels
 
 ## Future Enhancements
 - Persistent database storage
-- Multiple source-to-target channel pairs
+- Automatic bot restart without workflow restart
 - Message filtering rules
 - Admin commands (pause/resume)
 - Retry logic for transient errors
 - Forward mapping cleanup/expiration
+- Per-channel statistics
+- Retroactive forwarding option when changing channels
