@@ -102,16 +102,32 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 
 ### Message Deletion
 1. Send command `/delete <message_id>` in the source channel
-2. Bot looks up forwarded messages for that source message ID
-3. Deletes all forwarded copies from target channels
-4. Removes forward mapping entry
-5. Responds with success confirmation
+2. Bot validates the command:
+   - Missing message ID → increment errors, log error, reply with usage
+   - Invalid message ID → increment errors, log error, reply with error
+   - Message not found → increment errors, log error, reply with error
+3. Bot looks up forwarded messages for that source message ID
+4. Deletes from each target channel:
+   - Success → increment deleted counter, remove from mapping
+   - Failure → increment errors, keep in mapping for retry, log error
+5. Updates forward mapping intelligently:
+   - All succeed → remove mapping completely
+   - Partial → update mapping with only failed entries
+   - All fail → keep mapping unchanged
+6. Logs overall operation (DELETE or ERROR)
+7. Responds with appropriate success/failure message
 
 **Usage example:**
 ```
 /delete 12345
 ```
 This will delete message #12345 from all channels where it was forwarded.
+
+**Statistics behavior:**
+- `totalDeleted` increments per successfully deleted message, not per command
+- Example: 1 command deleting from 4 channels → 3 succeed, 1 fails → counter +3
+- Failed deletions increment the `errors` counter
+- Partial failures allow retry (failed entries remain in mapping)
 
 ### Channel Configuration Changes
 **Important behavior:**
