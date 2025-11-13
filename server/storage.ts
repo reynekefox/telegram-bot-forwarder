@@ -15,12 +15,14 @@ export interface IStorage {
   getStats(): Promise<BotStats>;
   incrementForwarded(): void;
   incrementEdited(): void;
+  incrementDeleted(): void;
   incrementErrors(): void;
   setBotRunning(running: boolean): void;
   
   // Forward mapping - stores chat ID and message ID pairs
   setForwardMapping(sourceChatId: string, sourceMessageId: number, forwardedMessages: ForwardedMessage[]): void;
   getForwardMapping(sourceChatId: string, sourceMessageId: number): ForwardedMessage[] | undefined;
+  deleteForwardMapping(sourceChatId: string, sourceMessageId: number): void;
   
   // Target channels configuration
   setTargetChannels(channels: string[]): void;
@@ -33,6 +35,7 @@ export class MemStorage implements IStorage {
   private stats: {
     totalForwarded: number;
     totalEdited: number;
+    totalDeleted: number;
     errors: number;
     startTime: number;
   };
@@ -45,6 +48,7 @@ export class MemStorage implements IStorage {
     this.stats = {
       totalForwarded: 0,
       totalEdited: 0,
+      totalDeleted: 0,
       errors: 0,
       startTime: Date.now(),
     };
@@ -92,6 +96,7 @@ export class MemStorage implements IStorage {
       isRunning: this.botRunning,
       totalForwarded: this.stats.totalForwarded,
       totalEdited: this.stats.totalEdited,
+      totalDeleted: this.stats.totalDeleted,
       errors: this.stats.errors,
       uptime,
     };
@@ -103,6 +108,10 @@ export class MemStorage implements IStorage {
 
   incrementEdited(): void {
     this.stats.totalEdited++;
+  }
+
+  incrementDeleted(): void {
+    this.stats.totalDeleted++;
   }
 
   incrementErrors(): void {
@@ -117,6 +126,11 @@ export class MemStorage implements IStorage {
   getForwardMapping(sourceChatId: string, sourceMessageId: number): ForwardedMessage[] | undefined {
     const key = `${sourceChatId}:${sourceMessageId}`;
     return this.forwardMap.get(key);
+  }
+
+  deleteForwardMapping(sourceChatId: string, sourceMessageId: number): void {
+    const key = `${sourceChatId}:${sourceMessageId}`;
+    this.forwardMap.delete(key);
   }
 
   setTargetChannels(channels: string[]): void {

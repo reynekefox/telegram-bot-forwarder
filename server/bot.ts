@@ -183,6 +183,118 @@ bot.on("edited_channel_post", async (ctx) => {
   }
 });
 
+// Handle delete command
+bot.command("delete", async (ctx) => {
+  if (ctx.chat.id.toString() !== SOURCE_CHAT_ID) {
+    return;
+  }
+
+  const args = ctx.message.text.split(" ");
+  if (args.length < 2) {
+    storage.incrementErrors();
+    await storage.addLog({
+      type: "error",
+      sourceChatId: ctx.chat.id.toString(),
+      sourceMessageId: 0,
+      targetMessageId: null,
+      status: "failed",
+      message: "Delete command failed: missing message ID",
+    });
+    await ctx.reply("Usage: /delete <message_id>\nExample: /delete 12345");
+    return;
+  }
+
+  const messageId = parseInt(args[1]);
+  if (isNaN(messageId)) {
+    storage.incrementErrors();
+    await storage.addLog({
+      type: "error",
+      sourceChatId: ctx.chat.id.toString(),
+      sourceMessageId: 0,
+      targetMessageId: null,
+      status: "failed",
+      message: `Delete command failed: invalid message ID "${args[1]}"`,
+    });
+    await ctx.reply("Invalid message ID. Please provide a numeric message ID.");
+    return;
+  }
+
+  const sourceChatId = ctx.chat.id.toString();
+  const forwardedMessages = storage.getForwardMapping(sourceChatId, messageId);
+
+  if (!forwardedMessages || forwardedMessages.length === 0) {
+    storage.incrementErrors();
+    await storage.addLog({
+      type: "error",
+      sourceChatId,
+      sourceMessageId: messageId,
+      targetMessageId: null,
+      status: "failed",
+      message: `Delete command failed: message #${messageId} not found in forwarding history`,
+    });
+    await ctx.reply(`Message #${messageId} not found in forwarding history.`);
+    return;
+  }
+
+  console.log(`Deleting ${forwardedMessages.length} forwarded messages (src #${messageId})`);
+
+  let successCount = 0;
+  const remainingMessages: Array<{ chatId: string; messageId: number }> = [];
+
+  for (const { chatId, messageId: targetMessageId } of forwardedMessages) {
+    try {
+      await ctx.telegram.deleteMessage(chatId, targetMessageId);
+      successCount++;
+      storage.incrementDeleted();
+      console.log(`Deleted message #${targetMessageId} from ${chatId}`);
+    } catch (error: any) {
+      console.error(`Error deleting message #${targetMessageId}:`, error.message);
+      storage.incrementErrors();
+      
+      // Keep this message in the mapping for future retry
+      remainingMessages.push({ chatId, messageId: targetMessageId });
+
+      await storage.addLog({
+        type: "error",
+        sourceChatId,
+        sourceMessageId: messageId,
+        targetMessageId,
+        status: "failed",
+        message: `Failed to delete from ${chatId}: ${error.message}`,
+      });
+    }
+  }
+
+  // Update mapping: keep only messages that failed to delete
+  if (successCount > 0) {
+    if (remainingMessages.length > 0) {
+      storage.setForwardMapping(sourceChatId, messageId, remainingMessages);
+    } else {
+      // All deletions succeeded - remove mapping completely
+      storage.deleteForwardMapping(sourceChatId, messageId);
+    }
+  }
+
+  // Log the delete operation
+  await storage.addLog({
+    type: "delete",
+    sourceChatId,
+    sourceMessageId: messageId,
+    targetMessageId: forwardedMessages[0]?.messageId || null,
+    status: successCount > 0 ? "success" : "failed",
+    message: `Message deleted from ${successCount} of ${forwardedMessages.length} channels`,
+  });
+
+  // Send user feedback
+  if (successCount === 0) {
+    await ctx.reply(`❌ Failed to delete message #${messageId} from any channels.`);
+  } else if (remainingMessages.length > 0) {
+    await ctx.reply(`⚠️ Message #${messageId} deleted from ${successCount} of ${forwardedMessages.length} channels. ${remainingMessages.length} failed - you can retry.`);
+  } else {
+    await ctx.reply(`✅ Message #${messageId} deleted from all ${successCount} channels.`);
+  }
+});
+
 // Error handling
 bot.catch(async (err: any) => {
   console.error("Bot error:", err);

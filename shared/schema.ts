@@ -26,6 +26,7 @@ export const botStats = z.object({
   isRunning: z.boolean(),
   totalForwarded: z.number(),
   totalEdited: z.number(),
+  totalDeleted: z.number(),
   errors: z.number(),
   uptime: z.number(),
 });

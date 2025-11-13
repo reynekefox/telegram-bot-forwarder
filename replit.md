@@ -1,7 +1,7 @@
 # Telegram Message Forwarding Bot
 
 ## Overview
-A Node.js/TypeScript Telegram bot that forwards messages between channels with full edit synchronization and a real-time monitoring dashboard. Now supports forwarding to **multiple target channels** (up to 4).
+A Node.js/TypeScript Telegram bot that forwards messages between channels with full edit synchronization, message deletion support, and a real-time monitoring dashboard. Supports forwarding to **multiple target channels** (up to 4).
 
 ## Features
 
@@ -9,6 +9,7 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - **Multi-Channel Forwarding**: Forwards messages to up to 4 target channels simultaneously
 - **Message Forwarding**: Automatically forwards all message types (text, photos, videos, documents)
 - **Edit Synchronization**: Syncs message edits across all target channels including formatting (bold, links, etc.)
+- **Message Deletion**: Delete forwarded messages using `/delete <message_id>` command
 - **Channel & Group Support**: Works with both channel posts and group messages
 - **Error Handling**: Comprehensive error handling with user-friendly messages
 - **Activity Logging**: All operations logged for monitoring
@@ -16,7 +17,7 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 
 ### Dashboard
 - **Real-Time Monitoring**: Live statistics updated every 2 seconds
-- **Status Cards**: Messages forwarded, edited, errors, uptime
+- **Status Cards**: Messages forwarded, edited, deleted, errors, uptime
 - **Activity Log**: Scrollable history of all bot operations
 - **Configuration Panel**: 
   - View source channel ID
@@ -47,12 +48,13 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - Forwards messages to multiple target channels
 - Maintains forward mapping (source→multiple target {chatId, messageId} pairs)
 - Preserves formatting entities in edits
+- Supports `/delete <message_id>` command for removing forwarded messages
 - Logs all operations with per-channel details
 
 ### Storage (server/storage.ts)
 - In-memory storage with proper interfaces
 - Bot status tracking
-- Statistics (forwarded, edited, errors, uptime)
+- Statistics (forwarded, edited, deleted, errors, uptime)
 - Activity logs (capped at 1000 entries)
 - **Immutable forward mapping**: Stores `{chatId, messageId}` pairs per source message
 - Target channels configuration (up to 4 channels)
@@ -66,7 +68,7 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 
 ### Dashboard (client/src/pages/Dashboard.tsx)
 - Polls API every 2 seconds
-- Displays real-time statistics
+- Displays real-time statistics (5 cards including deletions)
 - Shows activity log with timestamps
 - Indicates bot running status
 - Configuration panel with editable target channels
@@ -98,6 +100,19 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 3. Edits messages in **all original destination channels** (preserved from initial forward)
 4. Logs the operation with success count
 
+### Message Deletion
+1. Send command `/delete <message_id>` in the source channel
+2. Bot looks up forwarded messages for that source message ID
+3. Deletes all forwarded copies from target channels
+4. Removes forward mapping entry
+5. Responds with success confirmation
+
+**Usage example:**
+```
+/delete 12345
+```
+This will delete message #12345 from all channels where it was forwarded.
+
 ### Channel Configuration Changes
 **Important behavior:**
 - Changing target channel configuration affects **only future messages**
@@ -116,18 +131,19 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - **409 Conflict**: Another bot instance is running - shows clear error message
 - **Runtime errors**: Caught and logged to activity log
 - **Graceful shutdown**: Updates status and logs shutdown event
-- **Per-channel errors**: If forwarding fails for one channel, continues with others
+- **Per-channel errors**: If forwarding/editing/deleting fails for one channel, continues with others
 
 ## Monitoring
 
 ### Statistics
 - **Messages Forwarded**: Total count of successfully forwarded messages
 - **Messages Edited**: Total count of synchronized edits
+- **Messages Deleted**: Total count of deleted messages via `/delete` command
 - **Errors**: Count of failed operations
 - **Uptime**: Current session duration (0 when stopped)
 
 ### Activity Log
-- Type badges: FORWARD (blue), EDIT (amber), ERROR (red)
+- Type badges: FORWARD (blue), EDIT (amber), DELETE (red), ERROR (red)
 - Timestamps in local time
 - Message IDs with arrow showing source→target
 - Multi-channel operations show "X of Y channels" status
@@ -136,12 +152,15 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 ## Development Notes
 
 ### Recent Changes (November 13, 2025)
-- **Added multi-channel support**: Forward to up to 4 target channels
+- **Added delete command**: `/delete <message_id>` to remove forwarded messages
+- **Added delete statistics**: New status card showing total deleted messages
+- **Updated activity log**: DELETE badge for deletion operations
+- **Multi-channel support**: Forward to up to 4 target channels
 - **Configuration UI**: Editable target channels in dashboard
 - **Restart button**: Request bot restart via UI
-- **Improved forward mapping**: Now stores `{chatId, messageId}` pairs for robust edit sync
+- **Improved forward mapping**: Stores `{chatId, messageId}` pairs for robust edit sync
 - **Improved logging**: Per-channel error reporting
-- Fixed channel_post handling (was crashing on undefined ctx.message)
+- Fixed channel_post handling
 - Added entities preservation in edit synchronization
 - Implemented proper bot status tracking
 - Added uptime reset on bot start/stop
@@ -154,6 +173,12 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - Forward mapping grows unbounded (consider cleanup for long-running instances)
 - Bot restart requires manual workflow restart
 - No retroactive forwarding when changing target channels
+- Delete command only works for messages in forwarding history
+
+### Telegram Bot API Limitations
+- **No automatic deletion sync**: Telegram Bot API does not provide events when messages are deleted
+- Messages must be deleted manually using `/delete <message_id>` command
+- This is a fundamental limitation of Telegram's Bot API, not the application
 
 ## Future Enhancements
 - Persistent database storage
@@ -164,3 +189,4 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - Forward mapping cleanup/expiration
 - Per-channel statistics
 - Retroactive forwarding option when changing channels
+- Bulk delete command

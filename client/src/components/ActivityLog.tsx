@@ -1,12 +1,12 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowRight, CheckCircle2, Edit3, XCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, Edit3, XCircle, Trash2 } from "lucide-react";
 
 export interface LogEntry {
   id: string;
   timestamp: Date;
-  type: "forward" | "edit" | "error";
+  type: "forward" | "edit" | "delete" | "error";
   sourceChatId: string;
   sourceMessageId: number;
   targetMessageId?: number;
@@ -25,6 +25,8 @@ export default function ActivityLog({ logs }: ActivityLogProps) {
         return <ArrowRight className="h-4 w-4 text-primary" />;
       case "edit":
         return <Edit3 className="h-4 w-4 text-amber-600 dark:text-amber-500" />;
+      case "delete":
+        return <Trash2 className="h-4 w-4 text-red-600 dark:text-red-500" />;
       case "error":
         return <XCircle className="h-4 w-4 text-red-600 dark:text-red-500" />;
     }
@@ -36,6 +38,8 @@ export default function ActivityLog({ logs }: ActivityLogProps) {
         return "default";
       case "edit":
         return "secondary";
+      case "delete":
+        return "destructive";
       case "error":
         return "destructive";
       default:

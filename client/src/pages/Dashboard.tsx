@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { MessageSquare, Edit3, XCircle, Clock } from "lucide-react";
+import { MessageSquare, Edit3, XCircle, Clock, Trash2 } from "lucide-react";
 import StatusCard from "@/components/StatusCard";
 import BotStatusIndicator from "@/components/BotStatusIndicator";
 import ActivityLog, { LogEntry } from "@/components/ActivityLog";
@@ -25,7 +25,7 @@ export default function Dashboard() {
   const logs: LogEntry[] = logsData?.map((log) => ({
     id: log.id,
     timestamp: new Date(log.timestamp),
-    type: log.type as "forward" | "edit" | "error",
+    type: log.type as "forward" | "edit" | "delete" | "error",
     sourceChatId: log.sourceChatId,
     sourceMessageId: log.sourceMessageId,
     targetMessageId: log.targetMessageId || undefined,
@@ -55,7 +55,7 @@ export default function Dashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <StatusCard
             title="Messages Forwarded"
             value={statsLoading ? "..." : stats?.totalForwarded || 0}
@@ -69,6 +69,13 @@ export default function Dashboard() {
             icon={Edit3}
             variant="warning"
             description="Synced edits"
+          />
+          <StatusCard
+            title="Messages Deleted"
+            value={statsLoading ? "..." : stats?.totalDeleted || 0}
+            icon={Trash2}
+            variant="error"
+            description="Total deleted"
           />
           <StatusCard
             title="Errors"
