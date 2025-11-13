@@ -1,0 +1,84 @@
+import asyncio
+import logging
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+BOT_TOKEN = "8537284830:AAHO4ojIr2jsp3yq_m8wn-y-a53gC1XGj38"
+
+SOURCE_CHAT_ID = -1003141215929
+TARGET_CHAT_ID = -1003443779414
+
+bot = Bot(BOT_TOKEN)
+dp = Dispatcher()
+
+forward_map = {}  # (source_chat_id, source_msg_id) -> forwarded_msg_id
+
+
+async def forward_message(msg: Message):
+    logger.info(f"New message in source chat {msg.chat.id} #{msg.message_id}")
+    fwd = await bot.copy_message(
+        chat_id=TARGET_CHAT_ID,
+        from_chat_id=msg.chat.id,
+        message_id=msg.message_id
+    )
+    forward_map[(msg.chat.id, msg.message_id)] = fwd.message_id
+    logger.info(f"Forwarded as #{fwd.message_id} to {TARGET_CHAT_ID}")
+
+
+async def edit_forwarded(msg: Message):
+    key = (msg.chat.id, msg.message_id)
+    fwd_id = forward_map.get(key)
+    if not fwd_id:
+        logger.info(f"No forwarded message found for edited #{msg.message_id}")
+        return
+
+    logger.info(f"Editing forwarded message #{fwd_id} (src #{msg.message_id})")
+
+    if msg.text:
+        await bot.edit_message_text(
+            chat_id=TARGET_CHAT_ID,
+            message_id=fwd_id,
+            text=msg.text
+        )
+    elif msg.caption:
+        await bot.edit_message_caption(
+            chat_id=TARGET_CHAT_ID,
+            message_id=fwd_id,
+            caption=msg.caption
+        )
+
+
+# ==== НОВЫЕ СООБЩЕНИЯ ====
+
+@dp.message(F.chat.id == SOURCE_CHAT_ID)
+async def handle_group_message(msg: Message):
+    await forward_message(msg)
+
+
+@dp.channel_post(F.chat.id == SOURCE_CHAT_ID)
+async def handle_channel_post(msg: Message):
+    await forward_message(msg)
+
+
+# ==== РЕДАКТИРОВАННЫЕ СООБЩЕНИЯ ====
+
+@dp.edited_message(F.chat.id == SOURCE_CHAT_ID)
+async def handle_edited_group_message(msg: Message):
+    await edit_forwarded(msg)
+
+
+@dp.edited_channel_post(F.chat.id == SOURCE_CHAT_ID)
+async def handle_edited_channel_post(msg: Message):
+    await edit_forwarded(msg)
+
+
+async def main():
+    logger.info("Bot starting polling...")
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
