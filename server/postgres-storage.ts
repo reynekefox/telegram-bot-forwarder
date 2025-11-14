@@ -170,8 +170,8 @@ export class PostgreStorage implements IStorage {
   }
 
   async setTargetChannels(channels: string[]): Promise<void> {
-    const paddedChannels = [...channels.slice(0, 4)];
-    while (paddedChannels.length < 4) {
+    const paddedChannels = [...channels.slice(0, 5)];
+    while (paddedChannels.length < 5) {
       paddedChannels.push("");
     }
 
@@ -195,6 +195,7 @@ export class PostgreStorage implements IStorage {
     if (!result) {
       const defaultChannels = [
         process.env.TARGET_CHAT_ID || "",
+        "",
         "",
         "",
         ""

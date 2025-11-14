@@ -65,6 +65,7 @@ export class MemStorage implements IStorage {
       process.env.TARGET_CHAT_ID || "",
       "",
       "",
+      "",
       ""
     ];
   }
@@ -161,9 +162,9 @@ export class MemStorage implements IStorage {
   }
 
   async setTargetChannels(channels: string[]): Promise<void> {
-    // Ensure we always have exactly 4 slots
-    this.targetChannels = [...channels.slice(0, 4)];
-    while (this.targetChannels.length < 4) {
+    // Ensure we always have exactly 5 slots
+    this.targetChannels = [...channels.slice(0, 5)];
+    while (this.targetChannels.length < 5) {
       this.targetChannels.push("");
     }
   }
