@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Settings, Save, RefreshCw } from "lucide-react";
+import { Settings, Save, RefreshCw, Pause, Play } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -10,11 +10,13 @@ import { useToast } from "@/hooks/use-toast";
 interface ConfigPanelProps {
   sourceChatId: string;
   targetChannels: string[];
+  isPaused?: boolean;
 }
 
 export default function ConfigPanel({
   sourceChatId,
   targetChannels,
+  isPaused = false,
 }: ConfigPanelProps) {
   const [channels, setChannels] = useState<string[]>(targetChannels || ["", "", "", ""]);
   const { toast } = useToast();
@@ -66,12 +68,62 @@ export default function ConfigPanel({
     },
   });
 
+  const pauseBotMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/bot/pause");
+    },
+    onSuccess: () => {
+      toast({
+        title: "Bot paused",
+        description: "Messages will not be forwarded until resumed.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/logs"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to pause bot: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resumeBotMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/bot/resume");
+    },
+    onSuccess: () => {
+      toast({
+        title: "Bot resumed",
+        description: "Messages will now be forwarded normally.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/logs"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: `Failed to resume bot: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSave = () => {
     saveChannelsMutation.mutate(channels);
   };
 
   const handleRestart = () => {
     restartBotMutation.mutate();
+  };
+
+  const handlePauseToggle = () => {
+    if (isPaused) {
+      resumeBotMutation.mutate();
+    } else {
+      pauseBotMutation.mutate();
+    }
   };
 
   const handleChannelChange = (index: number, value: string) => {
@@ -127,7 +179,26 @@ export default function ConfigPanel({
           </Button>
         </div>
 
-        <div className="pt-2 border-t">
+        <div className="pt-2 border-t space-y-2">
+          <Button
+            onClick={handlePauseToggle}
+            disabled={pauseBotMutation.isPending || resumeBotMutation.isPending}
+            variant={isPaused ? "default" : "secondary"}
+            className="w-full"
+            data-testid="button-pause-toggle"
+          >
+            {isPaused ? (
+              <>
+                <Play className="h-4 w-4 mr-2" />
+                {resumeBotMutation.isPending ? "Resuming..." : "Resume Forwarding"}
+              </>
+            ) : (
+              <>
+                <Pause className="h-4 w-4 mr-2" />
+                {pauseBotMutation.isPending ? "Pausing..." : "Pause Forwarding"}
+              </>
+            )}
+          </Button>
           <Button
             onClick={handleRestart}
             disabled={restartBotMutation.isPending}

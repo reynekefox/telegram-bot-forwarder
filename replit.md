@@ -19,6 +19,7 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 ### Dashboard
 - **Real-Time Monitoring**: Live statistics updated every 2 seconds
 - **Status Cards**: Messages forwarded, edited, deleted, errors, uptime
+- **Pause Indicator**: Shows "Paused" badge in header when bot is paused
 - **Activity Log**: 
   - Scrollable history of all bot operations
   - **Message Previews**: Shows text content and photo thumbnails for forwarded messages
@@ -28,6 +29,7 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
   - View source channel ID
   - Configure up to 4 target channels
   - Save channel configuration
+  - **Pause/Resume button**: Temporarily stop/resume message forwarding
   - Restart bot button
 - **Dark Mode**: Full dark mode support
 
@@ -257,7 +259,6 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - Persistent database storage
 - Automatic bot restart without workflow restart
 - Message filtering rules
-- Admin commands (pause/resume)
 - Retry logic for transient errors
 - Forward mapping cleanup/expiration
 - Per-channel statistics

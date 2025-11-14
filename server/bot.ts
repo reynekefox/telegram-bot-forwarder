@@ -34,6 +34,12 @@ async function forwardMessage(ctx: any) {
 
   console.log(`New message in source chat ${sourceChatId} #${sourceMessageId}`);
 
+  // Check if bot is paused
+  if (storage.isPaused()) {
+    console.log("Bot is paused, skipping message forwarding");
+    return;
+  }
+
   // Check if this message is a reply to another message
   let replyToMapping: Map<string, number> | null = null;
   if (msg.reply_to_message) {

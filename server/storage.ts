@@ -20,6 +20,10 @@ export interface IStorage {
   incrementErrors(): void;
   setBotRunning(running: boolean): void;
   
+  // Bot pause state
+  setPaused(paused: boolean): void;
+  isPaused(): boolean;
+  
   // Forward mapping - stores chat ID and message ID pairs
   setForwardMapping(sourceChatId: string, sourceMessageId: number, forwardedMessages: ForwardedMessage[]): void;
   getForwardMapping(sourceChatId: string, sourceMessageId: number): ForwardedMessage[] | undefined;
@@ -41,6 +45,7 @@ export class MemStorage implements IStorage {
     startTime: number;
   };
   private botRunning: boolean;
+  private paused: boolean;
   private targetChannels: string[];
 
   constructor() {
@@ -54,6 +59,7 @@ export class MemStorage implements IStorage {
       startTime: Date.now(),
     };
     this.botRunning = false;
+    this.paused = false;
     // Initialize with one target channel from env, others empty
     this.targetChannels = [
       process.env.TARGET_CHAT_ID || "",
@@ -67,6 +73,14 @@ export class MemStorage implements IStorage {
     this.botRunning = running;
     // Always reset the baseline - either for new start or clean stop
     this.stats.startTime = Date.now();
+  }
+
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+  }
+
+  isPaused(): boolean {
+    return this.paused;
   }
 
   async addLog(insertLog: InsertBotLog): Promise<BotLog> {
@@ -106,6 +120,7 @@ export class MemStorage implements IStorage {
       : 0;
     return {
       isRunning: this.botRunning,
+      isPaused: this.paused,
       totalForwarded: this.stats.totalForwarded,
       totalEdited: this.stats.totalEdited,
       totalDeleted: this.stats.totalDeleted,

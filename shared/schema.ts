@@ -27,6 +27,7 @@ export type BotLog = typeof botLogs.$inferSelect;
 
 export const botStats = z.object({
   isRunning: z.boolean(),
+  isPaused: z.boolean(),
   totalForwarded: z.number(),
   totalEdited: z.number(),
   totalDeleted: z.number(),

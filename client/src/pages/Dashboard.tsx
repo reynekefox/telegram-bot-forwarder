@@ -51,6 +51,11 @@ export default function Dashboard() {
             <h1 className="text-xl font-bold">Telegram Bot Dashboard</h1>
           </div>
           <div className="flex items-center gap-3">
+            {stats?.isPaused && (
+              <div className="px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-md text-sm font-medium border border-amber-500/20">
+                Paused
+              </div>
+            )}
             <BotStatusIndicator isRunning={stats?.isRunning || false} />
             <ThemeToggle />
           </div>
@@ -103,6 +108,7 @@ export default function Dashboard() {
             <ConfigPanel
               sourceChatId={config?.sourceChatId || "Loading..."}
               targetChannels={config?.targetChannels || ["", "", "", ""]}
+              isPaused={stats?.isPaused || false}
             />
           </div>
         </div>

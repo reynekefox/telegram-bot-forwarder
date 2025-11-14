@@ -67,6 +67,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Pause bot
+  app.post("/api/bot/pause", async (_req, res) => {
+    try {
+      storage.setPaused(true);
+      await storage.addLog({
+        type: "info",
+        sourceChatId: process.env.SOURCE_CHAT_ID || "",
+        sourceMessageId: 0,
+        targetMessageId: null,
+        status: "success",
+        message: "Bot paused - messages will not be forwarded",
+      });
+      res.json({ success: true, paused: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Resume bot
+  app.post("/api/bot/resume", async (_req, res) => {
+    try {
+      storage.setPaused(false);
+      await storage.addLog({
+        type: "info",
+        sourceChatId: process.env.SOURCE_CHAT_ID || "",
+        sourceMessageId: 0,
+        targetMessageId: null,
+        status: "success",
+        message: "Bot resumed - messages will be forwarded",
+      });
+      res.json({ success: true, paused: false });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Delete forwarded message from dashboard
   app.post("/api/messages/delete", async (req, res) => {
     try {
