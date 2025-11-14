@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, serial, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -22,7 +22,9 @@ export const forwardMapping = pgTable("forward_mapping", {
   sourceChatId: text("source_chat_id").notNull(),
   sourceMessageId: integer("source_message_id").notNull(),
   forwardedMessages: jsonb("forwarded_messages").notNull(),
-});
+}, (table) => ({
+  uniqueSourceMessage: unique().on(table.sourceChatId, table.sourceMessageId),
+}));
 
 export const botConfig = pgTable("bot_config", {
   id: serial("id").primaryKey(),
