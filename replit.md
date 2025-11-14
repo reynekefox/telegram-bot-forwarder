@@ -8,6 +8,7 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 ### Bot Functionality
 - **Multi-Channel Forwarding**: Forwards messages to up to 4 target channels simultaneously
 - **Message Forwarding**: Automatically forwards all message types (text, photos, videos, documents)
+- **Reply Preservation**: When forwarding a reply message, automatically maintains reply chains across all target channels
 - **Edit Synchronization**: Syncs message edits across all target channels including formatting (bold, links, etc.)
 - **Message Deletion**: Delete forwarded messages using `/delete <message_id>` command
 - **Channel & Group Support**: Works with both channel posts and group messages
@@ -112,9 +113,13 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 
 ### Message Forwarding
 1. Bot receives message from source channel
-2. Copies message to all configured target channels
-3. Stores **immutable** mapping: `(source chat ID, source message ID)` → array of `{chatId, messageId}` pairs
-4. Logs the operation with success count
+2. If message is a reply to another message:
+   - Looks up forward mapping for the original message
+   - For each target channel, sets `reply_to_message_id` to the corresponding forwarded message ID
+   - This preserves reply chains across all target channels
+3. Copies message to all configured target channels with reply context
+4. Stores **immutable** mapping: `(source chat ID, source message ID)` → array of `{chatId, messageId}` pairs
+5. Logs the operation with success count
 
 ### Edit Synchronization
 1. Bot receives edit update from source channel

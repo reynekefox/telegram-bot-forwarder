@@ -34,15 +34,44 @@ async function forwardMessage(ctx: any) {
 
   console.log(`New message in source chat ${sourceChatId} #${sourceMessageId}`);
 
+  // Check if this message is a reply to another message
+  let replyToMapping: Map<string, number> | null = null;
+  if (msg.reply_to_message) {
+    const replyToMessageId = msg.reply_to_message.message_id;
+    console.log(`Message #${sourceMessageId} is a reply to #${replyToMessageId}`);
+    
+    // Find where the original message was forwarded
+    const originalForwarded = storage.getForwardMapping(sourceChatId, replyToMessageId);
+    if (originalForwarded && originalForwarded.length > 0) {
+      replyToMapping = new Map();
+      for (const { chatId, messageId } of originalForwarded) {
+        replyToMapping.set(chatId, messageId);
+      }
+      console.log(`Found reply mapping: original #${replyToMessageId} -> targets`, Array.from(replyToMapping.entries()));
+    } else {
+      console.log(`Warning: Reply to #${replyToMessageId} but no forward mapping found`);
+    }
+  }
+
   const forwardedMessages: Array<{ chatId: string; messageId: number }> = [];
   let successCount = 0;
 
   for (const targetChatId of targetChannels) {
     try {
+      const copyOptions: any = {};
+      
+      // If this message is a reply and we have the mapping for this target channel
+      if (replyToMapping && replyToMapping.has(targetChatId)) {
+        const targetReplyMessageId = replyToMapping.get(targetChatId)!;
+        copyOptions.reply_to_message_id = targetReplyMessageId;
+        console.log(`Setting reply_to_message_id=${targetReplyMessageId} for ${targetChatId}`);
+      }
+
       const forwarded = await ctx.telegram.copyMessage(
         targetChatId,
         sourceChatId,
-        sourceMessageId
+        sourceMessageId,
+        copyOptions
       );
 
       forwardedMessages.push({ chatId: targetChatId, messageId: forwarded.message_id });
