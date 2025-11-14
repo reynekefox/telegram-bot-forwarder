@@ -31,7 +31,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       res.json({
         sourceChatId: process.env.SOURCE_CHAT_ID,
-        targetChannels: storage.getTargetChannels(),
+        targetChannels: await storage.getTargetChannels(),
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -45,8 +45,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!Array.isArray(channels)) {
         return res.status(400).json({ error: "channels must be an array" });
       }
-      storage.setTargetChannels(channels);
-      res.json({ success: true, channels: storage.getTargetChannels() });
+      await storage.setTargetChannels(channels);
+      res.json({ success: true, channels: await storage.getTargetChannels() });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -70,7 +70,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pause bot
   app.post("/api/bot/pause", async (_req, res) => {
     try {
-      storage.setPaused(true);
+      await storage.setPaused(true);
       await storage.addLog({
         type: "info",
         sourceChatId: process.env.SOURCE_CHAT_ID || "",
@@ -88,7 +88,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Resume bot
   app.post("/api/bot/resume", async (_req, res) => {
     try {
-      storage.setPaused(false);
+      await storage.setPaused(false);
       await storage.addLog({
         type: "info",
         sourceChatId: process.env.SOURCE_CHAT_ID || "",
