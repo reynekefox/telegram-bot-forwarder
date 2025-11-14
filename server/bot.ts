@@ -25,7 +25,7 @@ async function forwardMessage(ctx: any) {
   }
 
   const sourceMessageId = msg.message_id;
-  const targetChannels = storage.getTargetChannels().filter(ch => ch.trim() !== "");
+  const targetChannels = (await storage.getTargetChannels()).filter(ch => ch.trim() !== "");
 
   if (targetChannels.length === 0) {
     console.log("No target channels configured");
@@ -35,7 +35,7 @@ async function forwardMessage(ctx: any) {
   console.log(`New message in source chat ${sourceChatId} #${sourceMessageId}`);
 
   // Check if bot is paused
-  if (storage.isPaused()) {
+  if (await storage.isPaused()) {
     console.log("Bot is paused, skipping message forwarding");
     return;
   }
@@ -47,7 +47,7 @@ async function forwardMessage(ctx: any) {
     console.log(`Message #${sourceMessageId} is a reply to #${replyToMessageId}`);
     
     // Find where the original message was forwarded
-    const originalForwarded = storage.getForwardMapping(sourceChatId, replyToMessageId);
+    const originalForwarded = await storage.getForwardMapping(sourceChatId, replyToMessageId);
     if (originalForwarded && originalForwarded.length > 0) {
       replyToMapping = new Map();
       for (const { chatId, messageId } of originalForwarded) {
@@ -85,7 +85,7 @@ async function forwardMessage(ctx: any) {
       console.log(`Forwarded as #${forwarded.message_id} to ${targetChatId}`);
     } catch (error: any) {
       console.error(`Error forwarding to ${targetChatId}:`, error.message);
-      storage.incrementErrors();
+      await storage.incrementErrors();
 
       await storage.addLog({
         type: "error",
@@ -99,8 +99,8 @@ async function forwardMessage(ctx: any) {
   }
 
   if (successCount > 0) {
-    storage.setForwardMapping(sourceChatId, sourceMessageId, forwardedMessages);
-    storage.incrementForwarded();
+    await storage.setForwardMapping(sourceChatId, sourceMessageId, forwardedMessages);
+    await storage.incrementForwarded();
 
     const messageText = msg.text || msg.caption || "";
     const hasPhoto = !!msg.photo;
@@ -141,7 +141,7 @@ async function editForwardedMessage(ctx: any) {
   }
 
   const sourceMessageId = editedMsg.message_id;
-  const forwardedMessages = storage.getForwardMapping(sourceChatId, sourceMessageId);
+  const forwardedMessages = await storage.getForwardMapping(sourceChatId, sourceMessageId);
 
   if (!forwardedMessages || forwardedMessages.length === 0) {
     console.log(`No forwarded messages found for edited #${sourceMessageId}`);
@@ -180,7 +180,7 @@ async function editForwardedMessage(ctx: any) {
       console.log(`Edit synchronized for message #${messageId} in ${chatId}`);
     } catch (error: any) {
       console.error(`Error editing message #${messageId}:`, error.message);
-      storage.incrementErrors();
+      await storage.incrementErrors();
 
       await storage.addLog({
         type: "error",
@@ -194,7 +194,7 @@ async function editForwardedMessage(ctx: any) {
   }
 
   if (successCount > 0) {
-    storage.incrementEdited();
+    await storage.incrementEdited();
 
     await storage.addLog({
       type: "edit",
@@ -230,10 +230,10 @@ bot.on("edited_message", async (ctx) => {
 
 // Helper to delete forwarded messages
 async function deleteForwardedMessage(telegram: any, sourceChatId: string, sourceMessageId: number) {
-  const forwardedMessages = storage.getForwardMapping(sourceChatId, sourceMessageId);
+  const forwardedMessages = await storage.getForwardMapping(sourceChatId, sourceMessageId);
 
   if (!forwardedMessages || forwardedMessages.length === 0) {
-    storage.incrementErrors();
+    await storage.incrementErrors();
     await storage.addLog({
       type: "error",
       sourceChatId,
@@ -262,11 +262,11 @@ async function deleteForwardedMessage(telegram: any, sourceChatId: string, sourc
     await telegram.deleteMessage(sourceChatId, sourceMessageId);
     successCount++;
     lastDeletedMessageId = sourceMessageId;
-    storage.incrementDeleted();
+    await storage.incrementDeleted();
     console.log(`Deleted message #${sourceMessageId} from source channel ${sourceChatId}`);
   } catch (error: any) {
     console.error(`Error deleting from source channel #${sourceMessageId}:`, error.message);
-    storage.incrementErrors();
+    await storage.incrementErrors();
     
     await storage.addLog({
       type: "error",
@@ -284,11 +284,11 @@ async function deleteForwardedMessage(telegram: any, sourceChatId: string, sourc
       await telegram.deleteMessage(chatId, targetMessageId);
       successCount++;
       lastDeletedMessageId = targetMessageId;
-      storage.incrementDeleted();
+      await storage.incrementDeleted();
       console.log(`Deleted message #${targetMessageId} from ${chatId}`);
     } catch (error: any) {
       console.error(`Error deleting message #${targetMessageId}:`, error.message);
-      storage.incrementErrors();
+      await storage.incrementErrors();
       
       remainingMessages.push({ chatId, messageId: targetMessageId });
 
@@ -305,9 +305,9 @@ async function deleteForwardedMessage(telegram: any, sourceChatId: string, sourc
 
   if (successCount > 0) {
     if (remainingMessages.length > 0) {
-      storage.setForwardMapping(sourceChatId, sourceMessageId, remainingMessages);
+      await storage.setForwardMapping(sourceChatId, sourceMessageId, remainingMessages);
     } else {
-      storage.deleteForwardMapping(sourceChatId, sourceMessageId);
+      await storage.deleteForwardMapping(sourceChatId, sourceMessageId);
     }
   }
 
@@ -349,7 +349,7 @@ bot.command("delete", async (ctx) => {
 
   const args = ctx.message.text.split(" ");
   if (args.length < 2) {
-    storage.incrementErrors();
+    await storage.incrementErrors();
     await storage.addLog({
       type: "error",
       sourceChatId: ctx.chat.id.toString(),
@@ -364,7 +364,7 @@ bot.command("delete", async (ctx) => {
 
   const messageId = parseInt(args[1]);
   if (isNaN(messageId)) {
-    storage.incrementErrors();
+    await storage.incrementErrors();
     await storage.addLog({
       type: "error",
       sourceChatId: ctx.chat.id.toString(),
@@ -394,7 +394,7 @@ bot.command("delete", async (ctx) => {
 // Error handling
 bot.catch(async (err: any) => {
   console.error("Bot error:", err);
-  storage.incrementErrors();
+  await storage.incrementErrors();
   
   await storage.addLog({
     type: "error",
@@ -411,7 +411,7 @@ export async function startBot() {
   
   try {
     // Set status to running before attempting to launch
-    storage.setBotRunning(true);
+    await storage.setBotRunning(true);
     
     await bot.launch({
       dropPendingUpdates: true,
@@ -420,7 +420,7 @@ export async function startBot() {
     console.log("✅ Bot successfully started and running!");
   } catch (error: any) {
     // Set status to not running on any error
-    storage.setBotRunning(false);
+    await storage.setBotRunning(false);
     
     if (error.response?.error_code === 409) {
       console.error("\n⚠️  ERROR: Another bot instance is already running!");
@@ -455,7 +455,7 @@ export async function startBot() {
   // Enable graceful stop
   process.once("SIGINT", async () => {
     console.log("Stopping bot (SIGINT)...");
-    storage.setBotRunning(false);
+    await storage.setBotRunning(false);
     await storage.addLog({
       type: "error",
       sourceChatId: "system",
@@ -468,7 +468,7 @@ export async function startBot() {
   });
   process.once("SIGTERM", async () => {
     console.log("Stopping bot (SIGTERM)...");
-    storage.setBotRunning(false);
+    await storage.setBotRunning(false);
     await storage.addLog({
       type: "error",
       sourceChatId: "system",

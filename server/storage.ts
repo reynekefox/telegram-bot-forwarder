@@ -14,24 +14,24 @@ export interface IStorage {
   
   // Bot stats
   getStats(): Promise<BotStats>;
-  incrementForwarded(): void;
-  incrementEdited(): void;
-  incrementDeleted(): void;
-  incrementErrors(): void;
-  setBotRunning(running: boolean): void;
+  incrementForwarded(): Promise<void>;
+  incrementEdited(): Promise<void>;
+  incrementDeleted(): Promise<void>;
+  incrementErrors(): Promise<void>;
+  setBotRunning(running: boolean): Promise<void>;
   
   // Bot pause state
-  setPaused(paused: boolean): void;
-  isPaused(): boolean;
+  setPaused(paused: boolean): Promise<void>;
+  isPaused(): Promise<boolean>;
   
   // Forward mapping - stores chat ID and message ID pairs
-  setForwardMapping(sourceChatId: string, sourceMessageId: number, forwardedMessages: ForwardedMessage[]): void;
-  getForwardMapping(sourceChatId: string, sourceMessageId: number): ForwardedMessage[] | undefined;
-  deleteForwardMapping(sourceChatId: string, sourceMessageId: number): void;
+  setForwardMapping(sourceChatId: string, sourceMessageId: number, forwardedMessages: ForwardedMessage[]): Promise<void>;
+  getForwardMapping(sourceChatId: string, sourceMessageId: number): Promise<ForwardedMessage[] | undefined>;
+  deleteForwardMapping(sourceChatId: string, sourceMessageId: number): Promise<void>;
   
   // Target channels configuration
-  setTargetChannels(channels: string[]): void;
-  getTargetChannels(): string[];
+  setTargetChannels(channels: string[]): Promise<void>;
+  getTargetChannels(): Promise<string[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -69,17 +69,17 @@ export class MemStorage implements IStorage {
     ];
   }
 
-  setBotRunning(running: boolean): void {
+  async setBotRunning(running: boolean): Promise<void> {
     this.botRunning = running;
     // Always reset the baseline - either for new start or clean stop
     this.stats.startTime = Date.now();
   }
 
-  setPaused(paused: boolean): void {
+  async setPaused(paused: boolean): Promise<void> {
     this.paused = paused;
   }
 
-  isPaused(): boolean {
+  async isPaused(): Promise<boolean> {
     return this.paused;
   }
 
@@ -129,38 +129,38 @@ export class MemStorage implements IStorage {
     };
   }
 
-  incrementForwarded(): void {
+  async incrementForwarded(): Promise<void> {
     this.stats.totalForwarded++;
   }
 
-  incrementEdited(): void {
+  async incrementEdited(): Promise<void> {
     this.stats.totalEdited++;
   }
 
-  incrementDeleted(): void {
+  async incrementDeleted(): Promise<void> {
     this.stats.totalDeleted++;
   }
 
-  incrementErrors(): void {
+  async incrementErrors(): Promise<void> {
     this.stats.errors++;
   }
 
-  setForwardMapping(sourceChatId: string, sourceMessageId: number, forwardedMessages: ForwardedMessage[]): void {
+  async setForwardMapping(sourceChatId: string, sourceMessageId: number, forwardedMessages: ForwardedMessage[]): Promise<void> {
     const key = `${sourceChatId}:${sourceMessageId}`;
     this.forwardMap.set(key, forwardedMessages);
   }
 
-  getForwardMapping(sourceChatId: string, sourceMessageId: number): ForwardedMessage[] | undefined {
+  async getForwardMapping(sourceChatId: string, sourceMessageId: number): Promise<ForwardedMessage[] | undefined> {
     const key = `${sourceChatId}:${sourceMessageId}`;
     return this.forwardMap.get(key);
   }
 
-  deleteForwardMapping(sourceChatId: string, sourceMessageId: number): void {
+  async deleteForwardMapping(sourceChatId: string, sourceMessageId: number): Promise<void> {
     const key = `${sourceChatId}:${sourceMessageId}`;
     this.forwardMap.delete(key);
   }
 
-  setTargetChannels(channels: string[]): void {
+  async setTargetChannels(channels: string[]): Promise<void> {
     // Ensure we always have exactly 4 slots
     this.targetChannels = [...channels.slice(0, 4)];
     while (this.targetChannels.length < 4) {
@@ -168,7 +168,7 @@ export class MemStorage implements IStorage {
     }
   }
 
-  getTargetChannels(): string[] {
+  async getTargetChannels(): Promise<string[]> {
     return [...this.targetChannels];
   }
 }
