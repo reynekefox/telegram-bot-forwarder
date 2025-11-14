@@ -410,6 +410,11 @@ export async function startBot() {
   console.log("Starting bot with long polling...");
   
   try {
+    // Delete any existing webhook to prevent 409 Conflict
+    console.log("Clearing webhook...");
+    await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+    console.log("Webhook cleared successfully");
+    
     // Set status to running before attempting to launch
     await storage.setBotRunning(true);
     
