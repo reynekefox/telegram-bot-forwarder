@@ -39,7 +39,8 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - **Node.js** with **TypeScript**
 - **Express** for HTTP server
 - **Telegraf** for Telegram Bot API
-- **In-memory storage** for logs and statistics
+- **PostgreSQL** for data persistence (via Neon)
+- **Drizzle ORM** for database operations
 
 ### Frontend
 - **React** with **TypeScript**
@@ -60,15 +61,16 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - `deleteForwardedMessage` function: shared deletion logic for bot commands and API
 - Logs all operations with per-channel details and message context
 
-### Storage (server/storage.ts)
-- In-memory storage with proper interfaces
-- Bot status tracking
+### Storage (server/storage.ts & server/postgres-storage.ts)
+- **PostgreSQL database** for persistent storage
+- Two storage implementations: `MemStorage` (legacy) and `PostgreStorage` (active)
+- Bot status tracking (persisted in `bot_stats` table)
 - Statistics (forwarded, edited, deleted, errors, uptime)
-- Activity logs (capped at 1000 entries):
+- Activity logs (stored in `bot_logs` table):
   - Stores message text and photo URLs for preview display
   - `findLog` method for retrieving original FORWARD logs
-- **Immutable forward mapping**: Stores `{chatId, messageId}` pairs per source message
-- Target channels configuration (up to 4 channels)
+- **Immutable forward mapping**: Stores `{chatId, messageId}` pairs per source message (in `forward_mapping` table with unique constraint)
+- Target channels configuration (stored in `bot_config` table, up to 4 channels)
 
 ### API (server/routes.ts)
 - `GET /api/stats` - Bot statistics
@@ -108,7 +110,7 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 ### Target Channels
 - Configure up to 4 target channels via the dashboard
 - Each channel is optional (empty fields are skipped)
-- Changes are saved to in-memory storage
+- Changes are saved to PostgreSQL database (persists across restarts)
 - **Important**: Configuration changes only affect NEW messages (see behavior notes)
 
 ## Bot Behavior
@@ -218,7 +220,13 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 
 ## Development Notes
 
-### Recent Changes (November 13, 2025)
+### Recent Changes (November 14, 2025)
+- **PostgreSQL migration**: Switched from in-memory storage to persistent database storage
+  - Created 4 tables: `bot_logs`, `forward_mapping`, `bot_config`, `bot_stats`
+  - Implemented `PostgreStorage` class with Drizzle ORM
+  - Added unique constraint on forward_mapping (source_chat_id, source_message_id)
+  - Data now persists across restarts (verified with end-to-end tests)
+  - All storage methods are now async (Promise-based)
 - **Dashboard-based deletion**: Delete forwarded messages directly from Activity Log UI
 - **Message previews**: Activity Log shows text content and photo thumbnails
 - **Message context capture**: Bot stores messageText, hasPhoto, photoUrl during forwarding
@@ -242,13 +250,13 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - Added graceful shutdown logging
 
 ### Known Limitations
-- In-memory storage (data lost on restart)
 - No retry mechanism for 409 conflicts
 - Forward mapping grows unbounded (consider cleanup for long-running instances)
 - Bot restart requires manual workflow restart
 - No retroactive forwarding when changing target channels
 - Delete command only works for messages in forwarding history
 - DELETE API endpoint lacks authentication (internal use only)
+- Pause state resets on workflow restart (acceptable for now)
 
 ### Telegram Bot API Limitations
 - **No automatic deletion sync**: Telegram Bot API does not provide events when messages are deleted
@@ -256,7 +264,6 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - This is a fundamental limitation of Telegram's Bot API, not the application
 
 ## Future Enhancements
-- Persistent database storage
 - Automatic bot restart without workflow restart
 - Message filtering rules
 - Retry logic for transient errors
@@ -266,3 +273,5 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
 - Bulk delete command from dashboard
 - Authentication for DELETE API endpoint
 - Video and document previews in Activity Log
+- Database indexes for performance optimization
+- Pause state persistence across restarts
