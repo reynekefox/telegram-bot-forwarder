@@ -18,7 +18,7 @@ export default function ConfigPanel({
   targetChannels,
   isPaused = false,
 }: ConfigPanelProps) {
-  const [channels, setChannels] = useState<string[]>(targetChannels || ["", "", "", ""]);
+  const [channels, setChannels] = useState<string[]>(targetChannels || ["", "", "", "", ""]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -152,9 +152,9 @@ export default function ConfigPanel({
 
         <div className="space-y-2">
           <label className="text-sm font-medium text-muted-foreground">
-            Target Channels (up to 4)
+            Target Channels (up to 5)
           </label>
-          {[0, 1, 2, 3].map((index) => (
+          {[0, 1, 2, 3, 4].map((index) => (
             <Input
               key={index}
               type="text"

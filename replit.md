@@ -1,12 +1,12 @@
 # Telegram Message Forwarding Bot
 
 ## Overview
-A Node.js/TypeScript Telegram bot that forwards messages between channels with full edit synchronization, message deletion support, and a real-time monitoring dashboard. Supports forwarding to **multiple target channels** (up to 4).
+A Node.js/TypeScript Telegram bot that forwards messages between channels with full edit synchronization, message deletion support, and a real-time monitoring dashboard. Supports forwarding to **multiple target channels** (up to 5).
 
 ## Features
 
 ### Bot Functionality
-- **Multi-Channel Forwarding**: Forwards messages to up to 4 target channels simultaneously
+- **Multi-Channel Forwarding**: Forwards messages to up to 5 target channels simultaneously
 - **Message Forwarding**: Automatically forwards all message types (text, photos, videos, documents)
 - **Reply Preservation**: When forwarding a reply message, automatically maintains reply chains across all target channels
 - **Edit Synchronization**: Syncs message edits across all target channels including formatting (bold, links, etc.)
@@ -27,7 +27,7 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
   - Toast notifications with detailed feedback (success/partial/failure)
 - **Configuration Panel**: 
   - View source channel ID
-  - Configure up to 4 target channels
+  - Configure up to 5 target channels
   - Save channel configuration
   - **Pause/Resume button**: Temporarily stop/resume message forwarding
   - Restart bot button
@@ -70,7 +70,7 @@ A Node.js/TypeScript Telegram bot that forwards messages between channels with f
   - Stores message text and photo URLs for preview display
   - `findLog` method for retrieving original FORWARD logs
 - **Immutable forward mapping**: Stores `{chatId, messageId}` pairs per source message (in `forward_mapping` table with unique constraint)
-- Target channels configuration (stored in `bot_config` table, up to 4 channels)
+- Target channels configuration (stored in `bot_config` table, up to 5 channels)
 
 ### API (server/routes.ts)
 - `GET /api/stats` - Bot statistics
